@@ -1,22 +1,113 @@
-import React from 'react'
-import { useAddress, useDisconnect, useMetamask } from "@thirdweb-dev/react";
+import React,{useEffect,useState} from 'react'
+import { useAddress, useDisconnect, useMetamask ,useNFTDrop} from "@thirdweb-dev/react";
 import { sanityClient, urlFor } from '../../sanity'
 import { Collection } from '../../typing'
 import Link from 'next/link'
+import { BigNumber } from 'ethers';
+import toast, { Toaster } from 'react-hot-toast'
+
+
 interface Props {
   collection: Collection
 }
 
 const NFTDropPage = ({ collection }: Props) => {
+  const [claimedSupply,setClaimedSupply] = useState<number>(0);
+  const [totalSupply,setTotalSupply] = useState<BigNumber>();
+  const [priceInEth,setPriceInEth]= useState("")
+  const [loading,setLoading] = useState<boolean>(true);
+  const nftDrop = useNFTDrop(collection.address)
 
   //Auth
 
   const connectWithMetamask=useMetamask();
   const address= useAddress()
   const disconnect = useDisconnect()
+  
 ///===
+
+  useEffect (()=>{
+    if(!nftDrop) return;
+    const fetechPrice = async()=>{
+      const claimCOnditions = await nftDrop.claimConditions.getAll();
+
+      setPriceInEth(claimCOnditions?.[0].currencyMetadata.displayValue)
+    }
+    fetechPrice()
+  },[nftDrop])
+
+  useEffect(()=>{
+    if(!nftDrop) return;
+    const fetchNFTDropData = async()=>{
+      setLoading(true);
+
+      const claimed = await nftDrop.getAllClaimed();
+      const total= await nftDrop.totalSupply();
+
+      setClaimedSupply(claimed.length);
+      setTotalSupply(total);
+
+      setLoading(false);
+    }
+    fetchNFTDropData()
+
+  },[nftDrop])
+
+  /* mint function */
+    const mintNft =()=>{
+      if (!nftDrop || !address) return
+      const quantity = 1
+      setLoading(true);
+      const notify = toast.loading('Minting...',
+      {
+        style: {
+          background: 'white',
+          color: 'green',
+          fontWeight: 'bolder',
+          fontSize: '17px',
+          padding: '20px',
+        }
+      }
+       )
+
+       nftDrop?.claimTo(address, quantity).then(async (tx) => {
+        const receipt = tx[0].receipt;
+        const claimedTokenId = tx[0].id;
+        const claimedNFT = await tx[0].data();
+  
+        toast('HOORAY.. You Successfully Minted!!', {
+          duration: 8000,
+          style: {
+            background: 'green',
+            color: 'white',
+            fontWeight: 'bolder',
+            fontSize: '17px',
+            padding: '20px',
+          }
+        })
+  
+      }).catch(err => {
+        console.log(err);
+        toast('Whoops... Something went wrong!.',{
+          style: {
+            background: 'red',
+            color: 'white',
+            fontWeight: 'bolder',
+            fontSize: '17px',
+            padding: '20px',
+          }
+        })
+      }).finally(() => {
+        setLoading(false);
+        toast.dismiss(notify);
+      })
+  
+    }
+  
+  
   return (
     <div className='flex h-screen flex-col lg:grid  lg:grid-cols-10'>
+      <Toaster position='bottom-center' />
       {/* Left */}
       <div className=' bg-gradient-to-br from-cyan-800 to-rose-500 lg:col-span-4'>
         <div  className='flex flex-col items-center justify-center py-2 lg:min-h-screen'>
@@ -77,15 +168,49 @@ const NFTDropPage = ({ collection }: Props) => {
           className='text-3xl font-bold lg:text-5xl lg:font-extrabold bg-gradient-to-br from-amber-400 to-zinc-600 bg-clip-text  font-bold text-transparent underline decoration-pink-600/50'>
               {collection.title}
           </h1>
-          <p 
+          
+          {loading ? (
+            <p 
+            className='animate-bounce pt-2 text-xl text-green-500'>
+                Loading Supply count ...
+            </p>
+          ):(
+            <p 
           className='pt-2 text-xl text-green-500'>
-            13/21 NFT's Claimed
+            {claimedSupply}/{totalSupply?.toString()} NFT's Claimed
           </p>
+          )}
+
+          {loading &&(
+            <img  className='h-80 w-80 object-contain'
+             src="https://media4.giphy.com/media/kUTME7ABmhYg5J3psM/giphy.gif?cid=790b7611e551b8d27c4fe0916c4cb61b539b521126b3dd02&rid=giphy.gif&ct=g" alt="" />
+          ) }
+          
+          
         </div>
 
         {/* mint Button */}
-        <button className=' h-16 w-full bg-red-600 text-white rounded-full mt-10'>
-          Mint NFT(0.01)
+        <button onClick={mintNft}  disabled={loading || claimedSupply===totalSupply?.toNumber() || !address} 
+        className=' h-16 w-full bg-red-600 text-white rounded-full mt-10 disabled:bg-gray-400'>
+         
+         {loading ? (
+              <>Loading</>
+            ) : claimedSupply == totalSupply?.toNumber() ? (
+              <>Sold Out</>
+            ) : !address ? (
+              <>Sign in to Mint</>
+            ) : (
+              <>
+                <span className='font-bold'>
+                  Mint NFT ({priceInEth}) ETH
+                </span> </>
+            )}
+          
+        
+        {/* mint comment  */}
+         
+         
+         
         </button>
       </div>
     </div>
