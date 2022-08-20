@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react'
 import { useAddress, useDisconnect, useMetamask ,useNFTDrop} from "@thirdweb-dev/react";
 import { sanityClient, urlFor } from '../../sanity'
+import { GetServerSideProps } from 'next'
 import { Collection } from '../../typing'
 import Link from 'next/link'
 import { BigNumber } from 'ethers';
